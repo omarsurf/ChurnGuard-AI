@@ -1,6 +1,5 @@
 # Telco Customer Churn Prediction
 
-[![CI](https://github.com/omarpiro/churn-ml-decision/actions/workflows/ci.yml/badge.svg)](https://github.com/omarpiro/churn-ml-decision/actions/workflows/ci.yml)
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![Coverage 89%](https://img.shields.io/badge/coverage-89%25-brightgreen.svg)
 ![License MIT](https://img.shields.io/badge/license-MIT-green.svg)
