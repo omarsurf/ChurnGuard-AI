@@ -6,6 +6,10 @@
 
 > **I built a production-ready ML pipeline that optimizes for business value, not just accuracy. It uses Net_Value as the selection metric, a JSON-backed model registry with promote/rollback, two-tier quality gates, KS-test drift detection, and a strict CI pipeline with 89% test coverage.**
 
+<p align="center">
+  <img src="assets/pipeline_diagram.png" alt="Pipeline Architecture" width="100%">
+</p>
+
 ---
 
 ## Table of Contents
@@ -60,33 +64,48 @@ Instead of maximizing accuracy, we **maximize Net_Value** subject to quality con
 
 ## Architecture
 
-```
-                                 ┌─────────────────────────────────────────────────┐
-                                 │              config/default.yaml                │
-                                 │   (Business params, quality gates, features)    │
-                                 └─────────────────────┬───────────────────────────┘
-                                                       │
-                    ┌──────────────────────────────────┼──────────────────────────────────┐
-                    │                                  │                                  │
-                    ▼                                  ▼                                  ▼
-┌───────────────────────────┐    ┌───────────────────────────────┐    ┌───────────────────────────┐
-│       PREPARE STAGE       │    │         TRAIN STAGE           │    │       EVALUATE STAGE      │
-│  ─────────────────────────│    │  ─────────────────────────────│    │  ─────────────────────────│
-│  - Data validation        │    │  - Multi-candidate training   │    │  - Threshold grid search  │
-│  - 14 engineered features │───▶│  - ROC-AUC model selection   │───▶│  - Net_Value optimization │
-│  - Train/val/test splits  │    │  - Registry registration      │    │  - Quality gate checks    │
-│  - Drift reference export │    │  - MLflow experiment logging  │    │  - Test set evaluation    │
-└───────────────────────────┘    └───────────────────────────────┘    └───────────────────────────┘
-                                                       │
-                                                       ▼
-                                 ┌───────────────────────────────┐
-                                 │        PREDICT STAGE          │
-                                 │  ─────────────────────────────│
-                                 │  - Production model from      │
-                                 │    registry (strict mode)     │
-                                 │  - Batch CSV inference        │
-                                 │  - Drift detection on input   │
-                                 └───────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph CONFIG["config/default.yaml"]
+        C[Business params<br/>Quality gates<br/>Features]
+    end
+
+    subgraph PREPARE["PREPARE STAGE"]
+        P1[Data Validation]
+        P2[14 Engineered Features]
+        P3[Train/Val/Test Splits]
+        P4[Drift Reference]
+    end
+
+    subgraph TRAIN["TRAIN STAGE"]
+        T1[Multi-Candidate Training]
+        T2[ROC-AUC Selection]
+        T3[Registry Registration]
+        T4[MLflow Logging]
+    end
+
+    subgraph EVALUATE["EVALUATE STAGE"]
+        E1[Threshold Grid Search]
+        E2[Net_Value Optimization]
+        E3[Quality Gate Checks]
+        E4[Test Set Evaluation]
+    end
+
+    subgraph PREDICT["PREDICT STAGE"]
+        PR1[Production Model]
+        PR2[Batch Inference]
+        PR3[Drift Detection]
+    end
+
+    CONFIG --> PREPARE
+    CONFIG --> TRAIN
+    CONFIG --> EVALUATE
+    PREPARE --> TRAIN --> EVALUATE --> PREDICT
+
+    style PREPARE fill:#3b82f6,color:#fff
+    style TRAIN fill:#8b5cf6,color:#fff
+    style EVALUATE fill:#10b981,color:#fff
+    style PREDICT fill:#f59e0b,color:#fff
 ```
 
 ### Artifact Flow
@@ -132,16 +151,28 @@ Instead of maximizing accuracy, we **maximize Net_Value** subject to quality con
 
 > Model: `logistic_regression-v20260207134143` (L1/saga regularization)
 
+### Model Performance Visualizations
+
+<p align="center">
+  <img src="assets/roc_curve.png" alt="ROC Curve" width="48%">
+  <img src="assets/confusion_matrix.png" alt="Confusion Matrix" width="48%">
+</p>
+
 ### Threshold Analysis
 
-```
-Threshold: 0.25 (selected via Net_Value optimization)
-├── True Positives:  303 churners caught
-├── False Positives: 298 non-churners contacted
-├── Total Flagged:   601 customers
-├── Recall:          81% of churners identified
-└── Net Value:       $151,750 estimated retention value
-```
+<p align="center">
+  <img src="assets/threshold_analysis.png" alt="Threshold Analysis" width="100%">
+</p>
+
+The left chart shows precision-recall trade-offs across thresholds. The right chart shows **Net_Value** (business impact) - the optimization target. **Threshold 0.25** maximizes business value while meeting quality constraints.
+
+### Feature Importance
+
+<p align="center">
+  <img src="assets/feature_importance.png" alt="Feature Importance" width="80%">
+</p>
+
+Top predictors: **Contract type** (Two year = low churn), **tenure**, **TotalCharges**, and engineered features like `tenure_x_contract`.
 
 ### Quality Gate Design
 
@@ -352,6 +383,7 @@ dvc metrics show
 
 ```
 churn-ml-decision/
+├── assets/                    # README visualizations (ROC, confusion matrix, etc.)
 ├── config/
 │   └── default.yaml           # Single source of truth for all configuration
 ├── data/
@@ -367,6 +399,8 @@ churn-ml-decision/
 │   ├── *.joblib               # Trained models (timestamped + canonical alias)
 │   ├── preprocessor.joblib    # Fitted sklearn ColumnTransformer
 │   └── final_test_results.csv # Production model test metrics (Git-tracked)
+├── scripts/
+│   └── generate_readme_visuals.py  # Generate README plots
 ├── src/churn_ml_decision/
 │   ├── prepare.py             # Data validation + feature engineering
 │   ├── train.py               # Multi-candidate training + registry
