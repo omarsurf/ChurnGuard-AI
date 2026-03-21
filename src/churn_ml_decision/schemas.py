@@ -159,28 +159,54 @@ def validate_prediction_outputs(
 ) -> list[str]:
     """Validate prediction outputs before writing downstream artifacts."""
     issues: list[str] = []
+    status = (
+        df["prediction_status"].fillna("ok")
+        if "prediction_status" in df.columns
+        else pd.Series("ok", index=df.index)
+    )
+    ok_mask = status == "ok"
+    failed_mask = status == "failed"
+
+    if "prediction_status" in df.columns:
+        invalid_status = int((~status.isin(["ok", "failed"])).sum())
+        if invalid_status > 0:
+            issues.append(f"{invalid_status} rows have invalid prediction_status values.")
 
     if "churn_probability" not in df.columns:
         issues.append("Missing 'churn_probability' column.")
     else:
-        invalid_prob = int((~df["churn_probability"].between(0, 1)).sum())
+        invalid_prob = int((ok_mask & ~df["churn_probability"].between(0, 1)).sum())
         if invalid_prob > 0:
             issues.append(f"{invalid_prob} rows have probabilities outside [0, 1].")
+        if "prediction_status" in df.columns:
+            unexpected_prob = int((failed_mask & df["churn_probability"].notna()).sum())
+            if unexpected_prob > 0:
+                issues.append(f"{unexpected_prob} failed rows should not contain probabilities.")
 
     if "churn_prediction" in df.columns:
-        invalid_pred = int((~df["churn_prediction"].isin([0, 1])).sum())
+        invalid_pred = int((ok_mask & ~df["churn_prediction"].isin([0, 1])).sum())
         if invalid_pred > 0:
             issues.append(f"{invalid_pred} rows have invalid churn_prediction values.")
+        if "prediction_status" in df.columns:
+            unexpected_pred = int((failed_mask & df["churn_prediction"].notna()).sum())
+            if unexpected_pred > 0:
+                issues.append(
+                    f"{unexpected_pred} failed rows should not contain churn_prediction values."
+                )
 
     if "decision" in df.columns and "churn_probability" in df.columns:
-        invalid_decision = int((~df["decision"].isin(["contact", "no_contact"])).sum())
+        invalid_decision = int((ok_mask & ~df["decision"].isin(["contact", "no_contact"])).sum())
         if invalid_decision > 0:
             issues.append(f"{invalid_decision} rows have invalid decision values.")
+        if "prediction_status" in df.columns:
+            unexpected_decision = int((failed_mask & df["decision"].notna()).sum())
+            if unexpected_decision > 0:
+                issues.append(f"{unexpected_decision} failed rows should not contain decisions.")
         if threshold is not None:
             expected_decision = (
                 df["churn_probability"].ge(threshold).map({True: "contact", False: "no_contact"})
             )
-            mismatches = int((df["decision"] != expected_decision).sum())
+            mismatches = int((ok_mask & (df["decision"] != expected_decision)).sum())
             if mismatches > 0:
                 issues.append(f"{mismatches} rows have inconsistent decision vs probability.")
 

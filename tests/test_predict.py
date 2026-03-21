@@ -12,6 +12,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from churn_ml_decision.config import load_typed_config
+from churn_ml_decision.exceptions import DataValidationError
 from churn_ml_decision.model_registry import ModelMetadata, ModelRegistry
 from churn_ml_decision.prepare import engineer_features
 from churn_ml_decision.predict import (
@@ -463,6 +464,89 @@ def test_predict_non_strict_marks_failed_rows_when_feature_preparation_fails(
     assert "prediction_status" in out.columns
     assert set(out["prediction_status"]) == {"failed"}
     assert out["churn_probability"].isna().all()
+
+
+def test_predict_strict_counts_failed_rows_in_monitoring_metrics(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    models_dir = tmp_path / "models"
+    metrics_dir = tmp_path / "metrics"
+    models_dir.mkdir(parents=True, exist_ok=True)
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+
+    X = pd.DataFrame(
+        {
+            "MonthlyCharges": [20.0, 50.0, 80.0],
+            "TotalCharges": [20.0, 500.0, 2000.0],
+        }
+    )
+    y = np.array([0, 1, 0])
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ("num", Pipeline([("scaler", StandardScaler())]), ["MonthlyCharges", "TotalCharges"])
+        ],
+        remainder="drop",
+    )
+    Xp = preprocessor.fit_transform(X)
+    model = LogisticRegression(max_iter=200)
+    model.fit(Xp, y)
+
+    joblib.dump(preprocessor, models_dir / "preprocessor.joblib")
+    joblib.dump(model, models_dir / "best_model.joblib")
+    pd.DataFrame([{"final_threshold": 0.5}]).to_csv(
+        models_dir / "final_test_results.csv",
+        index=False,
+    )
+
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(
+        "\n".join(
+            [
+                "paths:",
+                f"  models: {models_dir}",
+                "artifacts:",
+                "  preprocessor_file: preprocessor.joblib",
+                "  model_file: best_model.joblib",
+                "  final_results_file: final_test_results.csv",
+                "engineering:",
+                "  enabled: false",
+                "registry:",
+                "  enabled: false",
+                "monitoring:",
+                "  enabled: true",
+                f"  metrics_file: {metrics_dir / 'production_metrics.json'}",
+                f"  reference_file: {models_dir / 'drift_reference.json'}",
+                f"  drift_report_file: {metrics_dir / 'drift_report.json'}",
+            ]
+        )
+    )
+
+    input_path = tmp_path / "input.csv"
+    pd.DataFrame([{"MonthlyCharges": 40.0}]).to_csv(input_path, index=False)
+    output_path = tmp_path / "output.csv"
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "churn-predict",
+            "--config",
+            str(cfg),
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+            "--strict",
+            "--allow-unregistered",
+        ],
+    )
+
+    with pytest.raises(DataValidationError):
+        predict_main()
+
+    metrics = json.loads((metrics_dir / "production_metrics.json").read_text(encoding="utf-8"))
+    assert metrics["predictions_total"] == 1
+    assert metrics["prediction_failures"] == 1
+    assert metrics["failure_rate"] == 1.0
 
 
 # =============================================================================

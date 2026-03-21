@@ -39,6 +39,19 @@ def test_metrics_tracker_updates_drift_score_without_prediction_counters(tmp_pat
     assert payload["prediction_failures"] == 1
 
 
+def test_metrics_tracker_loads_partial_payload_with_defaults(tmp_path: Path):
+    path = tmp_path / "metrics.json"
+    path.write_text(json.dumps({"updated_at": "2026-01-01T00:00:00+00:00"}), encoding="utf-8")
+
+    tracker = ProductionMetricsTracker(path)
+    payload = tracker.update_prediction_metrics(batch_size=5, failed_rows=2, latency_ms=50.0)
+
+    assert payload["prediction_batches"] == 1
+    assert payload["predictions_total"] == 5
+    assert payload["prediction_failures"] == 2
+    assert payload["history"][-1]["batch_size"] == 5
+
+
 def test_drift_detector_caps_reference_storage_and_roundtrips(tmp_path: Path):
     reference = pd.DataFrame({"x": range(200), "y": range(1000, 1200)})
     detector = DataDriftDetector(max_reference_samples=25, random_state=7)

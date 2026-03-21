@@ -80,7 +80,7 @@ cat models/final_test_results.csv  # check metrics
 
 ### Drift detected
 ```bash
-churn-check-drift --input data/new.csv
+churn-check-drift --input data/new_customers.csv
 ```
 
 ### MLflow file backend deprecation (February 2026)
@@ -94,7 +94,7 @@ churn-check-drift --input data/new.csv
 ### Artifact Strategy
 | Artifact | Purpose | Tracking |
 |----------|---------|----------|
-| `*_vN_TIMESTAMP.joblib` | Immutable production model | Local only (gitignored) |
+| `*_v*_*.joblib` | Immutable production model | Local only (gitignored) |
 | `best_model.joblib` | DVC-tracked alias | DVC (for CI/notebooks) |
 | `registry.json` | Source of truth | Git (points to timestamped files) |
 
@@ -106,7 +106,7 @@ churn-check-drift --input data/new.csv
 churn-prepare --strict && churn-train --strict && churn-evaluate --target latest --strict
 
 # 2. Archive timestamped model (before it gets overwritten)
-cp models/*_TIMESTAMP.joblib /path/to/model-archive/
+cp models/*_v*_*.joblib /path/to/model-archive/
 
 # 3. Tag release
 git add models/registry.json

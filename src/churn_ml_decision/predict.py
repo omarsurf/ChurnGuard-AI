@@ -339,9 +339,11 @@ def main() -> None:
             },
         )
     except DataValidationError:
+        failed_rows = max(failed_rows, input_rows)
         logger.exception("Prediction aborted due to input validation errors.")
         raise
     except Exception:
+        failed_rows = max(failed_rows, input_rows)
         logger.exception("Predict stage failed")
         raise
     finally:

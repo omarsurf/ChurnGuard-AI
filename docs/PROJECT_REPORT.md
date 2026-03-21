@@ -36,7 +36,7 @@ See [THRESHOLD_ANALYSIS_NOTE.md](THRESHOLD_ANALYSIS_NOTE.md) for policy rational
 churn-prepare --config config/default.yaml --strict
 churn-train --config config/default.yaml --strict
 churn-evaluate --config config/default.yaml --target latest --strict
-churn-predict --config config/default.yaml --input data/new.csv --output pred.csv
+churn-predict --config config/default.yaml --input data/new_customers.csv --output pred.csv
 ```
 
 ## Key Artifacts

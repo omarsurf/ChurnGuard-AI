@@ -31,12 +31,12 @@ churn-model-promote --model-id <id>
 
 ### 3. Smoke Test
 ```bash
-churn-predict --input data/test.csv --output /tmp/pred.csv
+churn-predict --input data/new_customers.csv --output /tmp/pred.csv
 ```
 
 ### 4. Drift Check
 ```bash
-churn-check-drift --input data/new_batch.csv
+churn-check-drift --input data/new_customers.csv
 ```
 
 ## Rollback
@@ -52,7 +52,7 @@ churn-model-rollback
 
 # 3. Verify
 churn-health-check
-churn-predict --input data/test.csv --output /tmp/smoke.csv
+churn-predict --input data/new_customers.csv --output /tmp/smoke.csv
 ```
 
 ### Full Rollback (artifact missing)

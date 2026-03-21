@@ -236,8 +236,11 @@ def health_check_main() -> None:
         "preprocessor_exists": preprocessor_path.exists(),
         "canonical_model_exists": canonical_model.exists(),
         "registry_exists": registry_path.exists(),
-        "metrics_file_exists": metrics_path.exists(),
+        "metrics_file_exists": True,
     }
+
+    if cfg.monitoring.enabled:
+        checks["metrics_file_exists"] = metrics_path.exists()
 
     if cfg.monitoring.enabled:
         configured_drift_ref = resolve_path(root, cfg.monitoring.reference_file)

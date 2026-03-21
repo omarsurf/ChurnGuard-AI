@@ -442,3 +442,33 @@ def test_health_check_main_missing_production_artifact(
     assert output["status"] == "degraded"
     assert output["checks"]["production_model_set"] is True
     assert output["checks"]["production_model_exists"] is False
+
+
+def test_health_check_main_ignores_missing_metrics_file_when_monitoring_disabled(
+    tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
+):
+    (tmp_path / "models").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "data" / "processed").mkdir(parents=True, exist_ok=True)
+
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(yaml.dump(_minimal_config(tmp_path)))
+    monkeypatch.setattr("churn_ml_decision.cli.project_root", lambda: tmp_path)
+
+    (tmp_path / "models" / "v1.joblib").write_text("fake")
+    (tmp_path / "models" / "preprocessor.joblib").write_text("fake")
+    (tmp_path / "models" / "best_model.joblib").write_text("fake")
+
+    registry = ModelRegistry(tmp_path / "models" / "registry.json")
+    registry.register(
+        "models/v1.joblib",
+        ModelMetadata(model_id="v1", model_path="models/v1.joblib", config_hash="abc"),
+    )
+    registry.promote("v1")
+
+    with patch("sys.argv", ["health-check", "--config", str(config_path)]):
+        health_check_main()
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+    assert output["status"] == "healthy"
+    assert output["checks"]["metrics_file_exists"] is True

@@ -147,9 +147,22 @@ class ProductionMetricsTracker:
         }
 
     def load(self) -> dict[str, Any]:
+        default_metrics = self._default()
         if not self.path.exists():
-            return self._default()
-        return json.loads(self.path.read_text(encoding="utf-8"))
+            return default_metrics
+
+        try:
+            payload = json.loads(self.path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return default_metrics
+
+        if not isinstance(payload, dict):
+            return default_metrics
+
+        metrics = {**default_metrics, **payload}
+        if not isinstance(metrics.get("history"), list):
+            metrics["history"] = []
+        return metrics
 
     def save(self, payload: dict[str, Any]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)

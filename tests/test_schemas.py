@@ -114,3 +114,26 @@ def test_validate_prediction_outputs_without_threshold_skips_decision_consistenc
     )
     issues = validate_prediction_outputs(output, threshold=None, strict=False)
     assert issues == []
+
+
+def test_validate_prediction_outputs_allows_failed_rows_with_empty_outputs():
+    output = pd.DataFrame(
+        [
+            {
+                "churn_probability": 0.8,
+                "prediction_status": "ok",
+                "churn_prediction": 1,
+                "decision": "contact",
+            },
+            {
+                "churn_probability": pd.NA,
+                "prediction_status": "failed",
+                "churn_prediction": pd.NA,
+                "decision": pd.NA,
+            },
+        ]
+    )
+
+    issues = validate_prediction_outputs(output, threshold=0.5, strict=True)
+
+    assert issues == []
